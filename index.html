@@ -30,7 +30,7 @@ const Notes = ({ notes })=> {
         notes.map( note => {
           return (
             <li key={ note.id } className={ id*1 === note.id ? 'selected': ''}>
-              <Link to={`/${note.id}`}>{ note.txt }</Link>
+              <Link to={`/${note.id}`}>{ note.txt } ({ note.ranking })</Link>
             </li>
           );
         })
@@ -39,56 +39,64 @@ const Notes = ({ notes })=> {
   );
 };
 
-const Note = ({ notes, destroy, update })=> {
+const NoteForm = ({ notes, destroy, save })=> {
   const [txt, setTxt ] = useState('');
+  const [ranking, setRanking ] = useState(5);
   const { id } = useParams();
 
   useEffect(()=> {
     const note = notes.find( note => note.id === id*1);
     if(note){
       setTxt(note.txt);
+      setRanking(note.ranking);
     }
   }, [notes, id]);
 
-  const note = notes.find( note => note.id === id*1);
-  if(!note){
-    return null;
-  }
+  const note = notes.find( note => note.id === id*1) || {};
 
   const submit = async(ev)=> {
     ev.preventDefault();
-    await update({ ...note, txt});
+    await save({ ...note, txt, ranking});
+    if(!id){
+      setTxt('');
+      setRanking(5)
+    }
   }
   return (
     <>
-      <Notes notes={ notes } />
       <form onSubmit={ submit }>
         <input value={ txt } onChange={ ev => setTxt(ev.target.value)} />
-        <button disabled={ note.txt === txt}>Save</button>
+        <select value={ ranking } onChange={ev => setRanking(ev.target.value)}>
+        {
+          new Array(20).fill('').map((_, idx)=> {
+            return (
+              <option key={ idx }>
+                { idx + 1}
+              </option>
+            );
+          })
+        }
+        </select>
+        <button disabled={ note.txt === txt && note.ranking === ranking}>{ id ? 'update': 'create'}</button>
       </form>
-      <Link to='/'>Cancel</Link>
-      <button onClick={ ()=> destroy(note)}>Delete</button>
+      {
+        !!id && (
+          <>
+            <Link to='/'>Cancel</Link>
+            <button onClick={ ()=> destroy(note)}>Delete</button>
+          </>
+        )
+      }
     </>
-
   );
 };
 
-const Create = ({ create })=> {
-  const [txt, setTxt ] = useState('');
-
-  const submit = async(ev)=> {
-    ev.preventDefault();
-    await create({ txt });
-    setTxt('');
-  }
+const Note = ({ notes, destroy, update })=> {
   return (
     <>
-      <form onSubmit={ submit }>
-        <input value={ txt } onChange={ ev => setTxt(ev.target.value)} />
-        <button>Create</button>
-      </form>
+      <Notes notes={ notes } />
+      <NoteForm notes={ notes } destroy={ destroy } save={ update } />
     </>
-
   );
 };
 
@@ -115,7 +123,7 @@ const App = ()=>{
     const response = await fetch('/api/notes',
       {
         method: 'post',
-        body: JSON.stringify({ txt: note.txt, ranking: 5 }),
+        body: JSON.stringify({ txt: note.txt, ranking: note.ranking }),
         headers: {
           'Content-Type': 'application/json'
         }
@@ -130,7 +138,7 @@ const App = ()=>{
     const response = await fetch(`/api/notes/${note.id}`,
       {
         method: 'put',
-        body: JSON.stringify({ txt: note.txt, ranking: 5 }),
+        body: JSON.stringify({ txt: note.txt, ranking: note.ranking }),
         headers: {
           'Content-Type': 'application/json'
         }
@@ -143,7 +151,7 @@ const App = ()=>{
   return (
     <div>
       <h1>Acme Notes ({ notes.length})</h1>
-      <Create create={ create } />
+      <NoteForm save={ create } notes={[]}/>
       <Routes>
         <Route path='/' element={ <Notes notes={ notes } /> } />
         <Route path='/:id' element={ <Note update={ update } notes={ notes} destroy={ destroy }/>} />
@@ -169,6 +177,7 @@ root.render(
   form {
     display: flex;
     flex-direction: column;
+    border: solid 1px dodgerBlue;
   }
 
   form > * {
