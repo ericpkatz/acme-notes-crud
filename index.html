@@ -1,0 +1,190 @@
+
+<!DOCTYPE html>
+<html>
+<body>
+  <div id="root"></div>
+</body>
+<!-- This setup is not suitable for production. -->
+<!-- Only use it in development! -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script async src="https://ga.jspm.io/npm:es-module-shims@1.7.0/dist/es-module-shims.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react?dev",
+    "react-router-dom": "https://esm.sh/react-router-dom?dev",
+    "react-dom/client": "https://esm.sh/react-dom/client?dev"
+  }
+}
+</script>
+<script type="text/babel" data-type="module">
+import React, { useState, useEffect, StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { HashRouter, Routes, Route, Link, useParams, useNavigate } from 'react-router-dom';
+
+const Notes = ({ notes })=> {
+  const { id } = useParams();
+  return (
+    <ul>
+      {
+        notes.map( note => {
+          return (
+            <li key={ note.id } className={ id*1 === note.id ? 'selected': ''}>
+              <Link to={`/${note.id}`}>{ note.txt }</Link>
+            </li>
+          );
+        })
+      }
+    </ul>
+  );
+};
+
+const Note = ({ notes, destroy, update })=> {
+  const [txt, setTxt ] = useState('');
+  const { id } = useParams();
+
+  useEffect(()=> {
+    const note = notes.find( note => note.id === id*1);
+    if(note){
+      setTxt(note.txt);
+    }
+  }, [notes, id]);
+
+  const note = notes.find( note => note.id === id*1);
+  if(!note){
+    return null;
+  }
+
+  const submit = async(ev)=> {
+    ev.preventDefault();
+    await update({ ...note, txt});
+  }
+  return (
+    <>
+      <Notes notes={ notes } />
+      <form onSubmit={ submit }>
+        <input value={ txt } onChange={ ev => setTxt(ev.target.value)} />
+        <button disabled={ note.txt === txt}>Save</button>
+      </form>
+      <Link to='/'>Cancel</Link>
+      <button onClick={ ()=> destroy(note)}>Delete</button>
+    </>
+
+  );
+};
+
+const Create = ({ create })=> {
+  const [txt, setTxt ] = useState('');
+
+  const submit = async(ev)=> {
+    ev.preventDefault();
+    await create({ txt });
+    setTxt('');
+  }
+  return (
+    <>
+      <form onSubmit={ submit }>
+        <input value={ txt } onChange={ ev => setTxt(ev.target.value)} />
+        <button>Create</button>
+      </form>
+    </>
+
+  );
+};
+
+const App = ()=>{
+  const [notes, setNotes] = useState([]);
+  const navigate = useNavigate();
+
+  useEffect(()=> {
+    const fetchNotes = async()=> {
+      const response = await fetch('/api/notes');
+      const json = await response.json();
+      setNotes(json);
+    };
+    fetchNotes();
+  }, []);
+
+  const destroy = async(note) => {
+    await fetch(`/api/notes/${note.id}`, { method: 'delete'}); 
+    setNotes(notes.filter(_note => _note.id !== note.id));
+    navigate('/');
+  };
+
+  const create = async(note) => {
+    const response = await fetch('/api/notes',
+      {
+        method: 'post',
+        body: JSON.stringify({ txt: note.txt, ranking: 5 }),
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    ); 
+    note = await response.json()
+    setNotes([...notes, note]);
+    navigate(`/${note.id}`);
+  };
+  
+  const update = async(note) => {
+    const response = await fetch(`/api/notes/${note.id}`,
+      {
+        method: 'put',
+        body: JSON.stringify({ txt: note.txt, ranking: 5 }),
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    ); 
+    note = await response.json()
+    setNotes(notes.map(_note => _note.id === note.id ? note : _note));
+  };
+  
+  return (
+    <div>
+      <h1>Acme Notes ({ notes.length})</h1>
+      <Create create={ create } />
+      <Routes>
+        <Route path='/' element={ <Notes notes={ notes } /> } />
+        <Route path='/:id' element={ <Note update={ update } notes={ notes} destroy={ destroy }/>} />
+      </Routes>
+    </div>
+  );
+}
+
+
+const root = createRoot(document.getElementById('root'));
+root.render(
+  <StrictMode>
+    <HashRouter>
+      <App />
+    </HashRouter>
+  </StrictMode>
+);
+</script>
+<style>
+  body {
+    font-family: verdana;
+  }
+  form {
+    display: flex;
+    flex-direction: column;
+  }
+
+  form > * {
+    margin: 1rem;
+  }
+
+  li {
+    padding: 0.25rem;
+  }
+
+  .selected {
+    background-color: dodgerBlue;
+  }
+
+  .selected a {
+    color: cornSilk;
+  }
+</style>
+</html>
